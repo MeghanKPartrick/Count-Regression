@@ -1,0 +1,347 @@
+---
+title: "Count Regression"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(pscl)
+library(MASS)
+library(faraway)
+data(dvisits, package="faraway")
+dvisits=dvisits
+```
+
+
+Question 5 Page 100
+
+```{r}
+#Making plots to show the relationship between the response variable and potential predictors age and illness
+
+plot(jitter(dvisits$age), jitter(dvisits$doctorco), 
+     main="Scatterplot: doctorco vs. age with Jitter",
+     xlab="Age", ylab="doctorco")
+
+plot(jitter(dvisits$illness), jitter(dvisits$doctorco), 
+     main="Scatterplot: doctorco vs. illness with Jitter",
+     xlab="Illness", ylab="doctorco")
+```
+
+```{r}
+#Combining predictors chcond1 and chcond2 into a single three level factor
+dvisits$combined_chcond <- ifelse(dvisits$chcond1 == 0 & dvisits$chcond2 == 0, 0,
+                                   ifelse(dvisits$chcond1 == 1, 1, ifelse(dvisits$chcond2 == 1, 2, 0)))
+```
+
+
+```{r}
+#Making plot to show relationship of new combined factor and the response
+
+plot(jitter(dvisits$combined_chcond), jitter(dvisits$doctorco), 
+     main="Scatterplot: doctorco vs. Chronic Conditions with Jitter",
+     xlab="Combined Chronic Conditions", ylab="doctorco")
+```
+
+B) There seems to be the most data points in the "1" doctor visit category for a value of "1" in chronic conditions. They are all heavily focused around the 0 doctor visit point. Chronic conditions 1 and 2 show more people at the 3 and on marks, proportionately, to the amount that are at 0. 
+
+```{r}
+#Building a poisson regression model
+doctormod = glm(doctorco~sex+age+agesq+income+levyplus+freepoor+freerepa+illness+actdays+hscore+combined_chcond, family=poisson, data=dvisits)
+
+summary(doctormod)
+```
+
+C) Based on the residual deviance of 4380.2, this does not fit the regression. This is because it is far off of the degrees of freedom of 5178. The residual deviance should be very close to this number. 
+
+
+```{r}
+#Plotting residual and fitted values
+plot(doctormod, 1)
+```
+
+D) These lines of observations represent the groups of doctor visits in the model. The lowest line would represent observed doctor visits of 0, the next line up would be observed doctor visits of 1, and the third line up would be observed doctor visits of 2, and so on until the lines are not obvious anymore. 
+
+```{r}
+#Making a QQ plot of the residuals
+plot(doctormod, 2)
+```
+
+D) The QQ norm plot shows obvious not normal tendencies. About half the plot is very far off of the normal line. 
+
+
+```{r}
+#Using a stepwise AIC-based model selection method
+step_model = step(doctormod)
+```
+
+```{r}
+#Sumamrizing the step model to see what sort of person would be predicted to visit the doctor the most
+summary(step_model)
+```
+
+E) In the step model, it shows that an older female that makes less money, is covered by private health insurance, is not covered by government, is ill, have had reduced activity, lower health, and is in chronic condition is more likely to go to the doctor. However, the coefficient for being covered by private health insurance is not significant so this may not be the case for those particular people. 
+
+
+```{r}
+#Computing predicted probability distribution for last person in the dataset
+predprob(step_model)[5190,]
+```
+
+F) The predicted probabilities are computed above as: 
+  0.0856 for 0
+  0.0133 for 1
+  0.0010 for 2
+  0.00053 for 3
+  0.0000206 for 4
+  6.386e-07 for 5
+  1.650e-08 for 6
+  3.653e-10 for 7
+  7.078e-12 for 8 
+  1.219e-13 for 9
+  
+
+```{r}
+ocounttest <-table(dvisits$doctorco)[1:10]
+ocounttest
+#Tabulating frequency of the number of doctor visits
+#After observing the table, we notice very few people attend more than 7 appointments (only 6 people) so we are only focusing on 1 through 7. 
+ocount <-table(dvisits$doctorco)[1:8] 
+ocount
+
+#Computing expected frequency of doctor visits based upon most recent model
+expected_freq <-colSums(predprob(step_model)[,1:8])
+expected_freq
+```
+
+```{r}
+#Comparing observed with expected values
+plot(expected_freq,ocount,type="n",xlab="Predicted",ylab="Observed")
+text(expected_freq,ocount, 0:7)
+axis(2, at = seq(0, max(ocount), by = 1000), labels = seq(0, max(ocount), by = 1000))
+```
+
+G) We can see that there is really no need for the zero count inflation model because the model predicts the amount of patients attending 0 appointments very closely. We can see this in the graph as the 0 hovers around the 4,000 mark on both the x and y axis. We can see this further in the tables as the observed values show a count of 4141 for 0 and predicted shows a count of approximately 4014 for 0.
+
+```{r}
+#Fitting a gaussian model
+
+gaussian_model <- lm(doctorco ~ sex + age + agesq + income + levyplus + freepoor + freerepa + illness + actdays + hscore + combined_chcond, data = dvisits)
+```
+
+
+```{r}
+#Graphically comparing the fits
+plot(fitted(gaussian_model), fitted(step_model), xlab="Gaussian Predictions", ylab="Step Model Predictions")
+abline(0,1)
+```
+H) The fits obvious differ a large amount as there is a definite curve in the model. When Gaussian is predicting around 1 doctor appointment, the poisson seems to be fitting around 1. The poisson model only hits 1 at around the 1.75 mark for gaussian. Overall, the poisson seems to be predicted much lower until the 2.0 mark in which it starts increasing much quicker towards larger numbers, while gaussian seems to not predict any values much over 2.0.
+
+
+Page 101 Question 6
+
+```{r}
+data("wavesolder", package="faraway")
+head(wavesolder)
+help("wavesolder")
+```
+
+```{r}
+wavesolder$defects = wavesolder$y1 + wavesolder$y2 + wavesolder$y3
+```
+
+```{r}
+#Make plots for number of defects against each of the predictors
+plot(defects~prebake, data=wavesolder)
+plot(defects~flux, data=wavesolder)
+plot(defects~speed, data=wavesolder)
+plot(defects~preheat, data=wavesolder)
+plot(defects~cooling, data=wavesolder)
+plot(defects~agitator, data=wavesolder)
+plot(defects~temp, data=wavesolder)
+```
+
+A) 
+Prebake Graph: I notice that the prebake condition 2 has a much larger variance than prebake condition 1, however, they have around the same amount of mean defects.
+Flux Graph: I notice that the flux density 1 has a much larger variance than flux density 2, with similar amount of mean defects.
+Speed Graph: I notice that conveyor speed 2 has a MUCH larger variance than speed 1 and has a much higher amount of mean defects.
+Preheat Graph: I notice that preheat condtiton 1 has a little bit of a larger variance, but they have similar mean defects.
+Cooling Graph: This graph shows cooling conditions 1 and 2 have very similar interactions with defects.
+Agitator Graph: I notice that ultrasonic solder agitator time 1 has a larger variance of defects than ultrasonic solder agitator 2. They have similar mean defects.
+Temp Graph: I notice that solder temperature 1 has a greater variance of defects and mean defects than solder tempterature 2.
+
+```{r}
+#Check graphically that there is not trend in the replicates
+hist(wavesolder$y1, breaks=10, main='y1')
+hist(wavesolder$y2, breaks=10, main='y2')
+hist(wavesolder$y3, breaks=10, main='y3')
+```
+
+A) We can see with these histograms that there are not trends in the replicates
+
+```{r}
+#Computing mean and variance in each group 
+(mean1 = (wavesolder$y1[1]+wavesolder$y2[1]+wavesolder$y3[1])/3)
+(variance1 = var(c(wavesolder$y1[1], wavesolder$y2[1], wavesolder$y3[1])))
+
+mean2 = (wavesolder$y1[2]+wavesolder$y2[2]+wavesolder$y3[2])/3
+variance2 = var(c(wavesolder$y1[2], wavesolder$y2[2], wavesolder$y3[2]))
+
+mean3 = (wavesolder$y1[3]+wavesolder$y2[3]+wavesolder$y3[3])/3
+variance3 = var(c(wavesolder$y1[3], wavesolder$y2[3], wavesolder$y3[3]))
+
+mean4 = (wavesolder$y1[4]+wavesolder$y2[4]+wavesolder$y3[4])/3
+variance4 = var(c(wavesolder$y1[4], wavesolder$y2[4], wavesolder$y3[4]))
+
+mean5 = (wavesolder$y1[5]+wavesolder$y2[5]+wavesolder$y3[5])/3
+variance5 = var(c(wavesolder$y1[5], wavesolder$y2[5], wavesolder$y3[5]))
+
+mean6 = (wavesolder$y1[6]+wavesolder$y2[6]+wavesolder$y3[6])/3
+variance6 = var(c(wavesolder$y1[6], wavesolder$y2[6], wavesolder$y3[6]))
+
+mean7 = (wavesolder$y1[7]+wavesolder$y2[7]+wavesolder$y3[7])/3
+variance7 = var(c(wavesolder$y1[7], wavesolder$y2[7], wavesolder$y3[7]))
+
+mean8 = (wavesolder$y1[8]+wavesolder$y2[8]+wavesolder$y3[8])/3
+variance8 = var(c(wavesolder$y1[8], wavesolder$y2[8], wavesolder$y3[8]))
+
+mean9 = (wavesolder$y1[9]+wavesolder$y2[9]+wavesolder$y3[9])/3
+variance9 = var(c(wavesolder$y1[9], wavesolder$y2[9], wavesolder$y3[9]))
+
+mean10 = (wavesolder$y1[10]+wavesolder$y2[10]+wavesolder$y3[10])/3
+variance10 = var(c(wavesolder$y1[10], wavesolder$y2[10], wavesolder$y3[10]))
+
+mean11 = (wavesolder$y1[11]+wavesolder$y2[11]+wavesolder$y3[11])/3
+variance11 = var(c(wavesolder$y1[11], wavesolder$y2[11], wavesolder$y3[11]))
+
+mean12 = (wavesolder$y1[12]+wavesolder$y2[12]+wavesolder$y3[12])/3
+variance12 = var(c(wavesolder$y1[12], wavesolder$y2[12], wavesolder$y3[12]))
+
+mean13 = (wavesolder$y1[13]+wavesolder$y2[13]+wavesolder$y3[13])/3
+variance13 = var(c(wavesolder$y1[13], wavesolder$y2[13], wavesolder$y3[13]))
+
+mean14 = (wavesolder$y1[14]+wavesolder$y2[14]+wavesolder$y3[14])/3
+variance14 = var(c(wavesolder$y1[14], wavesolder$y2[14], wavesolder$y3[14]))
+
+mean15 = (wavesolder$y1[15]+wavesolder$y2[15]+wavesolder$y3[15])/3
+variance15 = var(c(wavesolder$y1[15], wavesolder$y2[15], wavesolder$y3[15]))
+
+mean16 = (wavesolder$y1[16]+wavesolder$y2[16]+wavesolder$y3[16])/3
+variance16 = var(c(wavesolder$y1[16], wavesolder$y2[16], wavesolder$y3[16]))
+```
+
+
+```{r}
+#Plotting variance against mean
+means <- c(mean1, mean2, mean3, mean4, mean5, mean6, mean7, mean8, mean9, mean10, mean11, mean12, mean13, mean14, mean15, mean16)
+variances <- c(variance1, variance2, variance3, variance4, variance5, variance6, variance7, variance8, variance9, variance10, variance11, variance12, variance13, variance14, variance15, variance16)
+group_names <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16")
+
+defectmeanvardata <- data.frame(Group = group_names, Mean = means, Variance = variances)
+plot(defectmeanvardata$Mean, defectmeanvardata$Variance, main = "Means vs. Variances",
+     xlab = "Means", ylab = "Variances", pch = 19, col = "blue")
+text(defectmeanvardata$Mean, defectmeanvardata$Variance, labels = defectmeanvardata$Group, pos = 3, col = "red")
+```
+
+```{r}
+#Plotting variance against mean without observation 11
+means_without_11 <- c(mean1, mean2, mean3, mean4, mean5, mean6, mean7, mean8, mean9, mean10, mean12, mean13, mean14, mean15, mean16)
+variances_without_11 <- c(variance1, variance2, variance3, variance4, variance5, variance6, variance7, variance8, variance9, variance10, variance12, variance13, variance14, variance15, variance16)
+group_names_without_11 <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "13", "14", "15", "16")
+
+defectmeanvardata_without_11 <- data.frame(Group = group_names_without_11, Mean = means_without_11, Variance = variances_without_11)
+plot(defectmeanvardata_without_11$Mean, defectmeanvardata_without_11$Variance, main = "Means vs. Variances",
+     xlab = "Means", ylab = "Variances", pch = 19, col = "blue")
+text(defectmeanvardata_without_11$Mean, defectmeanvardata_without_11$Variance, labels = defectmeanvardata_without_11$Group, pos = 3, col = "red")
+```
+
+
+B) The expected value and variance are supposed to be equal for a poisson model. First, I computed a graph with all means and variances. There was an obvious outlier that made it hard to evaluate the true pattern. I removed the 11th observation to get a better look. We can still see that most of the observations have a much greater variance than mean. This means that the poisson model will most likely not be a good fit as the mean and variance should be close to equal for each group.
+
+```{r}
+#Plotting log variance against log mean
+plot(log(defectmeanvardata$Mean), log(defectmeanvardata$Variance), main = "Log Means vs. Log Variances",
+     xlab = "Log Means", ylab = "Log Variances", pch = 19, col = "blue")
+text(log(defectmeanvardata$Mean), log(defectmeanvardata$Variance), labels = defectmeanvardata$Group, pos = 3, col = "red")
+```
+
+B) This logged data is hard to look at in order to find a pattern. The points seem very wide spread with no real pattern. Logged values are a little bit closer to havign equal means and variances, but not by much. There are still issues in this plot. 
+
+
+```{r}
+#Fitting poisson model for the number of defects
+defectmodel = glm(defects~prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, data=wavesolder)
+
+summary(defectmodel)
+```
+
+C) The deviance is 168.05 on 8 degrees of freedom. This deviance is MUCH larger than the degrees of freedom, which means the fit of the poisson model is not good. 
+
+```{r}
+#Residuals vs Fitted plot
+plot(defectmodel, 1)
+```
+
+```{r}
+#QQ Norm Plot
+plot(defectmodel, 2)
+```
+
+D) The QQ plot shows somewhat normal values. There does not seem to be any outliers on this plot. However, number 5 sticks out as a possible outlier in the residuals vs fitted plot. The residuals mostly seem randomly scattered with no real pattern, but this number seems to skew the red line in the plot.
+
+```{r}
+#Finding the largest residual
+max(abs(residuals(defectmodel)))
+residuals(defectmodel)
+```
+
+E) The largest residual is number 5 with 6.43. We will now exclude this and compute the new deviance.
+
+
+```{r}
+#Excluding the largest residual
+wavesoldernew = wavesolder[-5,]
+```
+
+```{r}
+#Fitting new poisson model with excluded observation
+newdefectsmodel = glm(defects~prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, data=wavesoldernew)
+summary(newdefectsmodel)
+```
+
+E) The new deviance is 118.98 on 7 degrees of freedom. This is much better compared to teh 168 on 8 df, however, this is still veyr far off and not considered a good fit. 
+
+
+```{r}
+#Fitting a quasipoisson model
+quasidefectsmodel = glm(defects~prebake+flux+speed+preheat+cooling+agitator+temp, family=quasipoisson, data=wavesoldernew)
+summary(quasidefectsmodel)
+```
+
+```{r}
+#Estimating value of the dispersion parameter
+(dp <-sum(residuals(quasidefectsmodel,type="pearson")^2)/quasidefectsmodel$df.res) 
+sumary(quasidefectsmodel,dispersion=dp) 
+```
+
+F) The dispersion parameter is 16.67 as estimated above. 
+
+```{r}
+#F-test
+drop1(quasidefectsmodel,test="F")
+```
+
+E) The tests are somewhat similar, but definitely have large differences. The similarities include which predictors are significant. This includes prebake, flux, speed, and temp in both models. However, the test inside of the summary shows much smaller p-values for all of those predictors. The predictors that were not significant show similar p-values in each. The F and Z values are obviously very different as well. There is little practical difference between the two. Out of the significant factors: Prebake and speed show that factor 2 will lead to higher defects, while flux and temp show that factor 1 will lead to higher defects.
+
+```{r}
+#Checking diagnostics for quasipoisson model
+plot(quasidefectsmodel, 1)
+plot(quasidefectsmodel, 2)
+```
+
+G) Removing the fifth observation and creating a quasipoisson model shows a much better dispersion of residuals vs. fitted without any outliers. There is no obvious pattern. The normal Q-Q plot is also looking fairly good. It is not an exact match, but it is not very far off. 
+
